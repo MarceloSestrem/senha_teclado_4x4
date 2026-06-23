@@ -1,15 +1,21 @@
 /**
- * Extensão Completa: LCD I2C, Teclado PCF8574, Cofre e Calculadora
+ * Extensão Super Kit I2C: LCD Avançado, Teclado PCF8574, Cofre e Calculadora Completa
  */
 //% weight=100 color=#0066cc icon="\uf11c" block="Super Kit I2C"
 namespace superKitI2C {
 
     let senhaCorreta = "1234"
     let senhaDigitada = ""
-    let visorCalculadora = ""
     let lcdAddr = 0x27
+    let backlightState = 0x08 // 0x08 = Ligado, 0x00 = Desligado
 
-    // Mapeamento padrão do teclado 4x4 (Linhas x Colunas)
+    // Variáveis internas da Calculadora de 2 operandos
+    let calcNumero1 = 0
+    let calcNumero2 = 0
+    let calcOperacao = ""
+    let calcEmSegundoNumero = false
+    let calcVisor = "0"
+
     const mapaTeclas = [
         ["1", "2", "3", "A"],
         ["4", "5", "6", "B"],
@@ -22,11 +28,10 @@ namespace superKitI2C {
     function i2cLcdWrite(data: number, mode: number) {
         let highnib = data & 0xf0
         let lownib = (data << 4) & 0xf0
-        // 0x08 garante a luz de fundo ligada (Backlight ON)
-        pins.i2cWriteNumber(lcdAddr, highnib | mode | 0x08 | 0x04, NumberFormat.Int8LE)
-        pins.i2cWriteNumber(lcdAddr, highnib | mode | 0x08, NumberFormat.Int8LE)
-        pins.i2cWriteNumber(lcdAddr, lownib | mode | 0x08 | 0x04, NumberFormat.Int8LE)
-        pins.i2cWriteNumber(lcdAddr, lownib | mode | 0x08, NumberFormat.Int8LE)
+        pins.i2cWriteNumber(lcdAddr, highnib | mode | backlightState | 0x04, NumberFormat.Int8LE)
+        pins.i2cWriteNumber(lcdAddr, highnib | mode | backlightState, NumberFormat.Int8LE)
+        pins.i2cWriteNumber(lcdAddr, lownib | mode | backlightState | 0x04, NumberFormat.Int8LE)
+        pins.i2cWriteNumber(lcdAddr, lownib | mode | backlightState, NumberFormat.Int8LE)
     }
 
     /**
@@ -40,7 +45,7 @@ namespace superKitI2C {
         i2cLcdWrite(0x33, 0)
         basic.pause(5)
         i2cLcdWrite(0x32, 0)
-        i2cLcdWrite(0x28, 0) // 4 bits, 2 linhas
+        i2cLcdWrite(0x28, 0) // 4 bits, 2 linhas, fonte 5x8
         i2cLcdWrite(0x0C, 0) // Display ON, Cursor OFF
         i2cLcdWrite(0x06, 0) // Auto incrementar cursor
         i2cLcdWrite(0x01, 0) // Limpar tela
@@ -57,6 +62,16 @@ namespace superKitI2C {
     }
 
     /**
+     * Liga ou desliga a luz de fundo (backlight) do LCD
+     */
+    //% block="[LCD] Luz de fundo %on"
+    //% on.shadow="toggleOnOff"
+    export function lcdBacklight(on: boolean): void {
+        backlightState = on ? 0x08 : 0x00;
+        i2cLcdWrite(0x00, 0); // Envia um comando vazio para atualizar o estado do pino da luz
+    }
+
+    /**
      * Exibe um texto no LCD em uma linha e coluna específicas
      */
     //% block="[LCD] Mostrar texto %texto na Coluna %col Linha %linha"
@@ -69,6 +84,34 @@ namespace superKitI2C {
         }
     }
 
+    /**
+     * Cria um caractere/símbolo customizado na memória do LCD (CGRAM).
+     * @param slot número do slot de memória (0 a 7)
+     * @param b1 Byte da linha 1 (0-31) ex: 4 para um pixel no centro
+     */
+    //% block="[LCD Símbolo] Criar no Slot %slot | L1 %b1 L2 %b2 L3 %b3 L4 %b4 L5 %b5 L6 %b6 L7 %b7 L8 %b8"
+    //% slot.min=0 slot.max=7
+    //% b1.min=0 b1.max=31 b2.min=0 b2.max=31 b3.min=0 b3.max=31 b4.min=0 b4.max=31
+    //% b5.min=0 b5.max=31 b6.min=0 b6.max=31 b7.min=0 b7.max=31 b8.min=0 b8.max=31
+    export function lcdCreateChar(slot: number, b1: number, b2: number, b3: number, b4: number, b5: number, b6: number, b7: number, b8: number): void {
+        let bytes = [b1, b2, b3, b4, b5, b6, b7, b8];
+        i2cLcdWrite(0x40 | (slot << 3), 0); // Aponta para o endereço da CGRAM do slot escolhido
+        for (let i = 0; i < 8; i++) {
+            i2cLcdWrite(bytes[i], 1);
+        }
+    }
+
+    /**
+     * Desenha na tela um símbolo customizado que foi salvo previamente em um Slot (0 a 7)
+     */
+    //% block="[LCD Símbolo] Escrever Slot %slot na Coluna %col Linha %linha"
+    //% slot.min=0 slot.max=7 col.min=0 col.max=15 linha.min=0 linha.max=1
+    export function lcdPrintCustomChar(slot: number, col: number, linha: number): void {
+        let offsets = [0x00, 0x40];
+        i2cLcdWrite(0x80 | (offsets[linha] + col), 0);
+        i2cLcdWrite(slot, 1); // No LCD, enviar o byte correspondente ao número do slot (0-7) imprime o caractere customizado
+    }
+
 
     // --- SEÇÃO 2: COMANDOS DO TECLADO PCF8574 ---
 
@@ -79,31 +122,27 @@ namespace superKitI2C {
     //% block="[Teclado] Ler tecla pressionada no endereço I2C %pcfAddr"
     //% pcfAddr.defl=0x20
     export function lerTeclado(pcfAddr: number): string {
-        // Varre as linhas mandando nível baixo (0) e lê as colunas
         for (let l = 0; l < 4; l++) {
-            // Define a linha atual como 0 e o resto como 1 (P0 a P3 são linhas, P4 a P7 colunas)
             let mascaraConstruida = 0xFF & ~(1 << l);
             pins.i2cWriteNumber(pcfAddr, mascaraConstruida, NumberFormat.Int8LE);
 
             let leitura = pins.i2cReadNumber(pcfAddr, NumberFormat.Int8LE);
-            // Inverte e isola os 4 bits superiores (P4 a P7) correspondentes às colunas
             let colRead = (~leitura >> 4) & 0x0F;
 
             if (colRead > 0) {
                 for (let c = 0; c < 4; c++) {
                     if (colRead & (1 << c)) {
-                        // Debounce básico para evitar leituras duplicadas
                         basic.pause(200);
                         return mapaTeclas[l][c];
                     }
                 }
             }
         }
-        return ""; // Nenhuma tecla pressionada
+        return "";
     }
 
 
-    // --- SEÇÃO 3: LÓGICA DE SENHA, SCROLL E CALCULADORA ---
+    // --- SEÇÃO 3: LÓGICA DE COFRE E SCROLL ---
 
     /**
      * Configura a senha correta do sistema
@@ -160,41 +199,94 @@ namespace superKitI2C {
         return res;
     }
 
+
+    // --- SEÇÃO 4: CALCULADORA MODULAR DE BLOCOS CONTROLANDO VARIÁVEIS ---
+
     /**
-     * Processa o teclado no modo Calculadora (A=+, B=-, C=*, D=/, #==, *=Limpar)
+     * Insere um número pressionado na lógica da calculadora
+     * @param numTexto O dígito em string lido do teclado (0-9)
      */
-    //% block="[Calculadora] Processar tecla %tecla"
-    export function processarCalculadora(tecla: string): string {
-        if (tecla == "") return visorCalculadora;
+    //% block="[Calculadora] Inserir Dígito %numTexto"
+    export function calcInserirDigito(numTexto: string): void {
+        // Ignora se tentarem injetar letras de operação aqui
+        if (numTexto == "A" || numTexto == "B" || numTexto == "C" || numTexto == "D" || numTexto == "*" || numTexto == "#" || numTexto == "") return;
 
-        if (tecla == "A") { visorCalculadora += "+"; }
-        else if (tecla == "B") { visorCalculadora += "-"; }
-        else if (tecla == "C") { visorCalculadora += "*"; }
-        else if (tecla == "D") { visorCalculadora += "/"; }
-        else if (tecla == "*") { visorCalculadora = ""; }
-        else if (tecla == "#") {
-            try {
-                let op = "";
-                if (visorCalculadora.indexOf("+") > 0) op = "+";
-                else if (visorCalculadora.indexOf("-") > 0) op = "-";
-                else if (visorCalculadora.indexOf("*") > 0) op = "*";
-                else if (visorCalculadora.indexOf("/") > 0) op = "/";
+        if (!calcEmSegundoNumero) {
+            if (calcVisor == "0") {
+                calcVisor = numTexto;
+            } else {
+                calcVisor += numTexto;
+            }
+            calcNumero1 = parseFloat(calcVisor);
+        } else {
+            // Se acabou de clicar no operador, reseta o visor para começar o segundo número
+            if (calcVisor == calcOperacao) {
+                calcVisor = numTexto;
+            } else {
+                calcVisor += numTexto;
+            }
+            calcNumero2 = parseFloat(calcVisor);
+        }
+    }
 
-                if (op != "") {
-                    let partes = visorCalculadora.split(op);
-                    let n1 = parseFloat(partes[0]);
-                    let n2 = parseFloat(partes[1]);
-                    if (op == "+") visorCalculadora = (n1 + n2).toString();
-                    if (op == "-") visorCalculadora = (n1 - n2).toString();
-                    if (op == "*") visorCalculadora = (n1 * n2).toString();
-                    if (op == "/") visorCalculadora = n2 != 0 ? (n1 / n2).toString() : "Erro /0";
-                }
-            } catch (e) {
-                visorCalculadora = "Erro";
+    /**
+     * Define a operação matemática através das letras mapeadas (A=+, B=-, C=*, D=/)
+     */
+    //% block="[Calculadora] Definir Operação por Tecla %letca"
+    export function calcDefirOperacao(letca: string): void {
+        if (letca == "A") calcOperacao = "+";
+        else if (letca == "B") calcOperacao = "-";
+        else if (letca == "C") calcOperacao = "*";
+        else if (letca == "D") calcOperacao = "/";
+        else return;
+
+        calcEmSegundoNumero = true;
+        calcVisor = calcOperacao; // Mostra o símbolo da operação no visor temporariamente
+    }
+
+    /**
+     * Executa a conta dos dois números guardados com base na operação e retorna o resultado final
+     */
+    //% block="[Calculadora] Comando Calcular (=)"
+    export function calcCalcular(): string {
+        let resultado = 0;
+        if (calcOperacao == "+") resultado = calcNumero1 + calcNumero2;
+        else if (calcOperacao == "-") resultado = calcNumero1 - calcNumero2;
+        else if (calcOperacao == "*") resultado = calcNumero1 * calcNumero2;
+        else if (calcOperacao == "/") {
+            if (calcNumero2 != 0) {
+                resultado = calcNumero1 / calcNumero2;
+            } else {
+                calcVisor = "Erro /0";
+                return calcVisor;
             }
         } else {
-            visorCalculadora += tecla;
+            return calcVisor;
         }
-        return visorCalculadora;
+
+        calcVisor = resultado.toString();
+        calcNumero1 = resultado; // Permite continuar calculando em cima do resultado
+        calcEmSegundoNumero = false;
+        return calcVisor;
+    }
+
+    /**
+     * Reseta totalmente a memória da calculadora
+     */
+    //% block="[Calculadora] Limpar Tudo (C)"
+    export function calcLimpar(): void {
+        calcNumero1 = 0;
+        calcNumero2 = 0;
+        calcOperacao = "";
+        calcEmSegundoNumero = false;
+        calcVisor = "0";
+    }
+
+    /**
+     * Retorna o texto atual que deve ser mostrado no visor do LCD da calculadora
+     */
+    //% block="[Calculadora] Obter Texto do Visor"
+    export function calcObterVisor(): string {
+        return calcVisor;
     }
 }
