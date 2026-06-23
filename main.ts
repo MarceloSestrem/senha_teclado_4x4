@@ -289,4 +289,46 @@ namespace superKitI2C {
     export function calcObterVisor(): string {
         return calcVisor;
     }
+    /**
+     * Cria um caractere customizado no LCD desenhando em uma matriz de blocos (5x8).
+     * @param slot número do slot de memória (0 a 7)
+     * @param matriz o desenho em matriz de pixels
+     */
+    //% block="[LCD Símbolo] Desenhar no Slot %slot || %matriz"
+    //% slot.min=0 slot.max=7
+    //% matriz.shadow="image_picker"
+    //% matriz.defl="    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . ."
+    export function lcdCriarSimboloMatriz(slot: number, matriz: string): void {
+        // O MakeCode passa a imagem como uma string com quebras de linha e pontos/sustenidos.
+        // Vamos processar essa string linha por linha para converter nos 8 bytes do LCD.
+        let linhas = matriz.split("\n");
+        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
+
+        for (let i = 0; i < 8; i++) {
+            if (i >= linhas.length) break;
+            let linhaTexto = linhas[i];
+            let valorLinha = 0;
+            let bitPos = 0;
+
+            // O MakeCode preenche a string com caracteres. Se for '#' ou '1', o pixel está ligado.
+            for (let j = 0; j < linhaTexto.length; j++) {
+                let char = linhaTexto.charAt(j);
+                if (char == "#" || char == "1" || char == "*") {
+                    // O LCD usa 5 bits (P4 a P0), onde o bit mais significativo é a esquerda
+                    valorLinha |= (1 << (4 - bitPos));
+                    bitPos++;
+                } else if (char == "." || char == "0") {
+                    bitPos++;
+                }
+                if (bitPos >= 5) break; // O LCD só tem 5 colunas por caractere
+            }
+            bytes[i] = valorLinha;
+        }
+
+        // Envia os bytes processados para a CGRAM do LCD
+        i2cLcdWrite(0x40 | (slot << 3), 0);
+        for (let k = 0; k < 8; k++) {
+            i2cLcdWrite(bytes[k], 1);
+        }
+    }
 }
