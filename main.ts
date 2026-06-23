@@ -68,7 +68,7 @@ namespace superKitI2C {
     //% on.shadow="toggleOnOff"
     export function lcdBacklight(on: boolean): void {
         backlightState = on ? 0x08 : 0x00;
-        i2cLcdWrite(0x00, 0); // Envia um comando vazio para atualizar o estado do pino da luz
+        i2cLcdWrite(0x00, 0);
     }
 
     /**
@@ -85,19 +85,40 @@ namespace superKitI2C {
     }
 
     /**
-     * Cria um caractere/símbolo customizado na memória do LCD (CGRAM).
+     * Cria um caractere customizado no LCD desenhando em uma matriz visual de blocos (5x8).
      * @param slot número do slot de memória (0 a 7)
-     * @param b1 Byte da linha 1 (0-31) ex: 4 para um pixel no centro
+     * @param matriz o desenho em matriz de pixels clicáveis
      */
-    //% block="[LCD Símbolo] Criar no Slot %slot | L1 %b1 L2 %b2 L3 %b3 L4 %b4 L5 %b5 L6 %b6 L7 %b7 L8 %b8"
+    //% block="[LCD Símbolo] Desenhar no Slot %slot || %matriz"
     //% slot.min=0 slot.max=7
-    //% b1.min=0 b1.max=31 b2.min=0 b2.max=31 b3.min=0 b3.max=31 b4.min=0 b4.max=31
-    //% b5.min=0 b5.max=31 b6.min=0 b6.max=31 b7.min=0 b7.max=31 b8.min=0 b8.max=31
-    export function lcdCreateChar(slot: number, b1: number, b2: number, b3: number, b4: number, b5: number, b6: number, b7: number, b8: number): void {
-        let bytes = [b1, b2, b3, b4, b5, b6, b7, b8];
-        i2cLcdWrite(0x40 | (slot << 3), 0); // Aponta para o endereço da CGRAM do slot escolhido
+    //% matriz.shadow="image_picker"
+    //% matriz.defl="    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . ."
+    export function lcdCriarSimboloMatriz(slot: number, matriz: string): void {
+        let linhas = matriz.split("\n");
+        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
+
         for (let i = 0; i < 8; i++) {
-            i2cLcdWrite(bytes[i], 1);
+            if (i >= linhas.length) break;
+            let linhaTexto = linhas[i];
+            let valorLinha = 0;
+            let bitPos = 0;
+
+            for (let j = 0; j < linhaTexto.length; j++) {
+                let char = linhaTexto.charAt(j);
+                if (char == "#" || char == "1" || char == "*") {
+                    valorLinha |= (1 << (4 - bitPos));
+                    bitPos++;
+                } else if (char == "." || char == "0") {
+                    bitPos++;
+                }
+                if (bitPos >= 5) break;
+            }
+            bytes[i] = valorLinha;
+        }
+
+        i2cLcdWrite(0x40 | (slot << 3), 0);
+        for (let k = 0; k < 8; k++) {
+            i2cLcdWrite(bytes[k], 1);
         }
     }
 
@@ -109,7 +130,7 @@ namespace superKitI2C {
     export function lcdPrintCustomChar(slot: number, col: number, linha: number): void {
         let offsets = [0x00, 0x40];
         i2cLcdWrite(0x80 | (offsets[linha] + col), 0);
-        i2cLcdWrite(slot, 1); // No LCD, enviar o byte correspondente ao número do slot (0-7) imprime o caractere customizado
+        i2cLcdWrite(slot, 1);
     }
 
 
@@ -145,7 +166,7 @@ namespace superKitI2C {
     // --- SEÇÃO 3: LÓGICA DE COFRE E SCROLL ---
 
     /**
-     * Configura a senha correta do sistema
+     * Configura a senha correta do sistema de cofre
      */
     //% block="[Cofre] Definir senha para %novaSenha"
     //% novaSenha.defl="1234"
@@ -155,7 +176,7 @@ namespace superKitI2C {
     }
 
     /**
-     * Processa a tecla digitada no modo cofre e devolve os asteriscos ou o status
+     * Processa a tecla digitada no modo cofre e devolve os asteriscos ou o status de validação
      */
     //% block="[Cofre] Processar tecla %tecla"
     export function processarCofre(tecla: string): string {
@@ -200,7 +221,7 @@ namespace superKitI2C {
     }
 
 
-    // --- SEÇÃO 4: CALCULADORA MODULAR DE BLOCOS CONTROLANDO VARIÁVEIS ---
+    // --- SEÇÃO 4: LÓGICA DA CALCULADORA MODULAR ---
 
     /**
      * Insere um número pressionado na lógica da calculadora
@@ -208,7 +229,6 @@ namespace superKitI2C {
      */
     //% block="[Calculadora] Inserir Dígito %numTexto"
     export function calcInserirDigito(numTexto: string): void {
-        // Ignora se tentarem injetar letras de operação aqui
         if (numTexto == "A" || numTexto == "B" || numTexto == "C" || numTexto == "D" || numTexto == "*" || numTexto == "#" || numTexto == "") return;
 
         if (!calcEmSegundoNumero) {
@@ -219,7 +239,6 @@ namespace superKitI2C {
             }
             calcNumero1 = parseFloat(calcVisor);
         } else {
-            // Se acabou de clicar no operador, reseta o visor para começar o segundo número
             if (calcVisor == calcOperacao) {
                 calcVisor = numTexto;
             } else {
@@ -241,7 +260,7 @@ namespace superKitI2C {
         else return;
 
         calcEmSegundoNumero = true;
-        calcVisor = calcOperacao; // Mostra o símbolo da operação no visor temporariamente
+        calcVisor = calcOperacao;
     }
 
     /**
@@ -265,7 +284,7 @@ namespace superKitI2C {
         }
 
         calcVisor = resultado.toString();
-        calcNumero1 = resultado; // Permite continuar calculando em cima do resultado
+        calcNumero1 = resultado;
         calcEmSegundoNumero = false;
         return calcVisor;
     }
@@ -288,47 +307,5 @@ namespace superKitI2C {
     //% block="[Calculadora] Obter Texto do Visor"
     export function calcObterVisor(): string {
         return calcVisor;
-    }
-    /**
-     * Cria um caractere customizado no LCD desenhando em uma matriz de blocos (5x8).
-     * @param slot número do slot de memória (0 a 7)
-     * @param matriz o desenho em matriz de pixels
-     */
-    //% block="[LCD Símbolo] Desenhar no Slot %slot || %matriz"
-    //% slot.min=0 slot.max=7
-    //% matriz.shadow="image_picker"
-    //% matriz.defl="    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . ."
-    export function lcdCriarSimboloMatriz(slot: number, matriz: string): void {
-        // O MakeCode passa a imagem como uma string com quebras de linha e pontos/sustenidos.
-        // Vamos processar essa string linha por linha para converter nos 8 bytes do LCD.
-        let linhas = matriz.split("\n");
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-
-        for (let i = 0; i < 8; i++) {
-            if (i >= linhas.length) break;
-            let linhaTexto = linhas[i];
-            let valorLinha = 0;
-            let bitPos = 0;
-
-            // O MakeCode preenche a string com caracteres. Se for '#' ou '1', o pixel está ligado.
-            for (let j = 0; j < linhaTexto.length; j++) {
-                let char = linhaTexto.charAt(j);
-                if (char == "#" || char == "1" || char == "*") {
-                    // O LCD usa 5 bits (P4 a P0), onde o bit mais significativo é a esquerda
-                    valorLinha |= (1 << (4 - bitPos));
-                    bitPos++;
-                } else if (char == "." || char == "0") {
-                    bitPos++;
-                }
-                if (bitPos >= 5) break; // O LCD só tem 5 colunas por caractere
-            }
-            bytes[i] = valorLinha;
-        }
-
-        // Envia os bytes processados para a CGRAM do LCD
-        i2cLcdWrite(0x40 | (slot << 3), 0);
-        for (let k = 0; k < 8; k++) {
-            i2cLcdWrite(bytes[k], 1);
-        }
     }
 }
