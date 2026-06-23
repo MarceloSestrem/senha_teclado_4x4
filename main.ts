@@ -85,29 +85,17 @@ namespace superKitI2C {
     }
 
     /**
-     * Cria um caractere customizado no LCD através de uma matriz visual (5x8).
+     * Cria um caractere customizado informando valores de 0 a 31 para cada linha.
+     * Ex Coração (Slot 0): L1=0, L2=10, L3=31, L4=31, L5=14, L6=4, L7=0, L8=0
+     * Ex Cadeado (Slot 1): L1=14, L2=17, L3=17, L4=31, L5=27, L6=27, L7=31, L8=0
      * @param slot número do slot de memória (0 a 7)
-     * @param matriz desenho de 5x8 pixels
      */
-    //% block="[LCD Símbolo] Desenhar no Slot %slot || %matriz"
+    //% block="[LCD Símbolo] Criar no Slot %slot | L1 %b1 L2 %b2 L3 %b3 L4 %b4 L5 %b5 L6 %b6 L7 %b7 L8 %b8"
     //% slot.min=0 slot.max=7
-    //% matriz.shadow="mini_image_picker"
-    //% matriz.defl="mini_image_picker"
-    export function lcdCriarSimboloMatriz(slot: number, matriz: Image): void {
-        if (!matriz) return;
-        let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
-
-        // Mapeia as 8 linhas da imagem do MakeCode para o formato de bytes do LCD
-        for (let i = 0; i < 8; i++) {
-            let valorLinha = 0;
-            for (let j = 0; j < 5; j++) {
-                if (matriz.pixel(j, i)) {
-                    valorLinha |= (1 << (4 - j));
-                }
-            }
-            bytes[i] = valorLinha;
-        }
-
+    //% b1.min=0 b1.max=31 b2.min=0 b2.max=31 b3.min=0 b3.max=31 b4.min=0 b4.max=31
+    //% b5.min=0 b5.max=31 b6.min=0 b6.max=31 b7.min=0 b7.max=31 b8.min=0 b8.max=31
+    export function lcdCriarSimboloValores(slot: number, b1: number, b2: number, b3: number, b4: number, b5: number, b6: number, b7: number, b8: number): void {
+        let bytes = [b1, b2, b3, b4, b5, b6, b7, b8];
         i2cLcdWrite(0x40 | (slot << 3), 0);
         for (let k = 0; k < 8; k++) {
             i2cLcdWrite(bytes[k], 1);
@@ -259,7 +247,7 @@ namespace superKitI2C {
      * Executa a conta dos dois números guardados com base na operação e retorna o resultado final
      */
     //% block="[Calculadora] Comando Calcular (=)"
-    export function calcCalcular(): string {
+    export function calcCalcular(): void {
         let resultado = 0;
         if (calcOperacao == "+") resultado = calcNumero1 + calcNumero2;
         else if (calcOperacao == "-") resultado = calcNumero1 + calcNumero2;
@@ -269,16 +257,15 @@ namespace superKitI2C {
                 resultado = calcNumero1 / calcNumero2;
             } else {
                 calcVisor = "Erro /0";
-                return calcVisor;
+                return;
             }
         } else {
-            return calcVisor;
+            return;
         }
 
         calcVisor = resultado.toString();
         calcNumero1 = resultado;
         calcEmSegundoNumero = false;
-        return calcVisor;
     }
 
     /**
