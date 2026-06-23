@@ -1,7 +1,7 @@
 /**
- * Extensão Super Kit I2C: LCD Avançado, Teclado PCF8574, Cofre e Calculadora Completa
+ * Extensão Completa: LCD Avançado, Teclado PCF8574, Cofre e Calculadora Completa
  */
-//% weight=100 color=#0066cc icon="\uf11c" block="Super Kit I2C"
+//% weight=100 color=#0066cc icon="\uf11c" block="Aplicativos"
 namespace superKitI2C {
 
     let senhaCorreta = "1234"
