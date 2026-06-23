@@ -85,16 +85,15 @@ namespace superKitI2C {
     }
 
     /**
-     * Cria um caractere customizado informando valores de 0 a 31 para cada linha.
-     * Ex Coração (Slot 0): L1=0, L2=10, L3=31, L4=31, L5=14, L6=4, L7=0, L8=0
-     * Ex Cadeado (Slot 1): L1=14, L2=17, L3=17, L4=31, L5=27, L6=27, L7=31, L8=0
+     * Cria um caractere customizado inserindo os valores binários de 5 bits para cada linha.
+     * Use o formato 0bXXXXX (Ex: Coração L2 = 0b01010)
      * @param slot número do slot de memória (0 a 7)
      */
     //% block="[LCD Símbolo] Criar no Slot %slot | L1 %b1 L2 %b2 L3 %b3 L4 %b4 L5 %b5 L6 %b6 L7 %b7 L8 %b8"
     //% slot.min=0 slot.max=7
-    //% b1.min=0 b1.max=31 b2.min=0 b2.max=31 b3.min=0 b3.max=31 b4.min=0 b4.max=31
-    //% b5.min=0 b5.max=31 b6.min=0 b6.max=31 b7.min=0 b7.max=31 b8.min=0 b8.max=31
-    export function lcdCriarSimboloValores(slot: number, b1: number, b2: number, b3: number, b4: number, b5: number, b6: number, b7: number, b8: number): void {
+    //% b1.defl=0b00000 b2.defl=0b01010 b3.defl=0b11111 b4.defl=0b11111
+    //% b5.defl=0b01110 b6.defl=0b00100 b7.defl=0b00000 b8.defl=0b00000
+    export function lcdCriarSimboloBinario(slot: number, b1: number, b2: number, b3: number, b4: number, b5: number, b6: number, b7: number, b8: number): void {
         let bytes = [b1, b2, b3, b4, b5, b6, b7, b8];
         i2cLcdWrite(0x40 | (slot << 3), 0);
         for (let k = 0; k < 8; k++) {
