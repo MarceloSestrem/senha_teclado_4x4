@@ -85,33 +85,25 @@ namespace superKitI2C {
     }
 
     /**
-     * Cria um caractere customizado no LCD desenhando em uma matriz visual de blocos (5x8).
+     * Cria um caractere customizado no LCD através de uma matriz visual (5x8).
      * @param slot número do slot de memória (0 a 7)
-     * @param matriz o desenho em matriz de pixels clicáveis
+     * @param matriz desenho de 5x8 pixels
      */
     //% block="[LCD Símbolo] Desenhar no Slot %slot || %matriz"
     //% slot.min=0 slot.max=7
-    //% matriz.shadow="image_picker"
-    //% matriz.defl="    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . . \n    . . . . ."
-    export function lcdCriarSimboloMatriz(slot: number, matriz: string): void {
-        let linhas = matriz.split("\n");
+    //% matriz.shadow="mini_image_picker"
+    //% matriz.defl="mini_image_picker"
+    export function lcdCriarSimboloMatriz(slot: number, matriz: Image): void {
+        if (!matriz) return;
         let bytes = [0, 0, 0, 0, 0, 0, 0, 0];
 
+        // Mapeia as 8 linhas da imagem do MakeCode para o formato de bytes do LCD
         for (let i = 0; i < 8; i++) {
-            if (i >= linhas.length) break;
-            let linhaTexto = linhas[i];
             let valorLinha = 0;
-            let bitPos = 0;
-
-            for (let j = 0; j < linhaTexto.length; j++) {
-                let char = linhaTexto.charAt(j);
-                if (char == "#" || char == "1" || char == "*") {
-                    valorLinha |= (1 << (4 - bitPos));
-                    bitPos++;
-                } else if (char == "." || char == "0") {
-                    bitPos++;
+            for (let j = 0; j < 5; j++) {
+                if (matriz.pixel(j, i)) {
+                    valorLinha |= (1 << (4 - j));
                 }
-                if (bitPos >= 5) break;
             }
             bytes[i] = valorLinha;
         }
@@ -270,7 +262,7 @@ namespace superKitI2C {
     export function calcCalcular(): string {
         let resultado = 0;
         if (calcOperacao == "+") resultado = calcNumero1 + calcNumero2;
-        else if (calcOperacao == "-") resultado = calcNumero1 - calcNumero2;
+        else if (calcOperacao == "-") resultado = calcNumero1 + calcNumero2;
         else if (calcOperacao == "*") resultado = calcNumero1 * calcNumero2;
         else if (calcOperacao == "/") {
             if (calcNumero2 != 0) {
