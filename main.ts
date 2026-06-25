@@ -34,22 +34,42 @@ namespace superKitI2C {
         pins.i2cWriteNumber(lcdAddr, lownib | mode | backlightState, NumberFormat.Int8LE)
     }
 
+    // --- NOVO: BLOCO VISUAL DE CRIAÇÃO DE CARACTERE CUSTOMIZADO ---
     /**
-     * Inicializa a tela LCD I2C no endereço especificado (geralmente 0x27 ou 0x3F)
+     * Desenha e cria um caractere customizado no LCD usando uma grade visual 5x8.
+     * Basta marcar as posições que deseja acender (true = pixel ligado).
      */
-    //% block="[LCD] Inicializar no endereço I2C %addr"
-    //% addr.defl=0x27
-    export function lcdInit(addr: number): void {
-        lcdAddr = addr
-        basic.pause(50)
-        i2cLcdWrite(0x33, 0)
-        basic.pause(5)
-        i2cLcdWrite(0x32, 0)
-        i2cLcdWrite(0x28, 0) // 4 bits, 2 linhas, fonte 5x8
-        i2cLcdWrite(0x0C, 0) // Display ON, Cursor OFF
-        i2cLcdWrite(0x06, 0) // Auto incrementar cursor
-        i2cLcdWrite(0x01, 0) // Limpar tela
-        basic.pause(2)
+    //% block="[LCD Símbolo] Criar Caractere no Slot %slot || L1 %r1 L2 %r2 L3 %r3 L4 %r4 L5 %r5 L6 %r6 L7 %r7 L8 %r8"
+    //% slot.min=0 slot.max=7
+    //% r1.shadow="toggleOnOff" r2.shadow="toggleOnOff" r3.shadow="toggleOnOff" r4.shadow="toggleOnOff"
+    //% r5.shadow="toggleOnOff" r6.shadow="toggleOnOff" r7.shadow="toggleOnOff" r8.shadow="toggleOnOff"
+    //% expandableArgumentMode="enabled"
+    export function lcdCriarCaractereVisual(
+        slot: number,
+        r1: boolean[] = [false, false, false, false, false],
+        r2: boolean[] = [false, false, false, false, false],
+        r3: boolean[] = [false, false, false, false, false],
+        r4: boolean[] = [false, false, false, false, false],
+        r5: boolean[] = [false, false, false, false, false],
+        r6: boolean[] = [false, false, false, false, false],
+        r7: boolean[] = [false, false, false, false, false],
+        r8: boolean[] = [false, false, false, false, false]
+    ): void {
+        const linhas = [r1, r2, r3, r4, r5, r6, r7, r8];
+        let bytes: number[] = [];
+        for (let i = 0; i < 8; i++) {
+            let byte = 0;
+            for (let j = 0; j < 5; j++) {
+                if (linhas[i] && linhas[i][j]) {
+                    byte |= (1 << (4 - j));
+                }
+            }
+            bytes.push(byte);
+        }
+        i2cLcdWrite(0x40 | (slot << 3), 0);
+        for (let k = 0; k < 8; k++) {
+            i2cLcdWrite(bytes[k], 1);
+        }
     }
 
     /**
