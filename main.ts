@@ -1,4 +1,14 @@
 /**
+ * Enum para mapear visualmente as 32 posições do LCD 16x2
+ */
+enum LcdPosition1602 {
+    // Linha 1 (Posições 1 a 16)
+    P1 = 0, P2 = 1, P3 = 2, P4 = 3, P5 = 4, P6 = 5, P7 = 6, P8 = 7, P9 = 8, P10 = 9, P11 = 10, P12 = 11, P13 = 12, P14 = 13, P15 = 14, P16 = 15,
+    // Linha 2 (Posições 17 a 32)
+    P17 = 16, P18 = 17, P19 = 18, P20 = 19, P21 = 20, P22 = 21, P23 = 22, P24 = 23, P25 = 24, P26 = 25, P27 = 26, P28 = 27, P29 = 28, P30 = 29, P31 = 30, P32 = 31
+}
+
+/**
  * Extensão Completa: LCD Avançado, Teclado PCF8574, Cofre e Calculadora Completa
  */
 //% weight=100 color=#0066cc icon="\uf11c" block="Aplicativos"
@@ -9,7 +19,7 @@ namespace superKitI2C {
     let lcdAddr = 0x27
     let backlightState = 0x08 // 0x08 = Ligado, 0x00 = Desligado
 
-    // Variáveis internas da Calculadora de 2 operandos
+    // Variáveis internas da Calculadora
     let calcNumero1 = 0
     let calcNumero2 = 0
     let calcOperacao = ""
@@ -45,10 +55,10 @@ namespace superKitI2C {
         i2cLcdWrite(0x33, 0)
         basic.pause(5)
         i2cLcdWrite(0x32, 0)
-        i2cLcdWrite(0x28, 0) // 4 bits, 2 linhas, fonte 5x8
-        i2cLcdWrite(0x0C, 0) // Display ON, Cursor OFF
-        i2cLcdWrite(0x06, 0) // Auto incrementar cursor
-        i2cLcdWrite(0x01, 0) // Limpar tela
+        i2cLcdWrite(0x28, 0)
+        i2cLcdWrite(0x0C, 0)
+        i2cLcdWrite(0x06, 0)
+        i2cLcdWrite(0x01, 0)
         basic.pause(2)
     }
 
@@ -72,21 +82,35 @@ namespace superKitI2C {
     }
 
     /**
-     * Exibe um texto no LCD em uma linha e coluna específicas
+     * Converte a posição linear (0 a 31) selecionada no Grid para o comando DDRAM correto do LCD
      */
-    //% block="[LCD] Mostrar texto %texto na Coluna %col Linha %linha"
-    //% col.min=0 col.max=15 linha.min=0 linha.max=1
-    export function lcdShowString(texto: string, col: number, linha: number): void {
-        let offsets = [0x00, 0x40]
-        i2cLcdWrite(0x80 | (offsets[linha] + col), 0)
-        for (let i = 0; i < texto.length; i++) {
-            i2cLcdWrite(texto.charCodeAt(i), 1)
-        }
+    //% blockId=superkit_lcd_position_1602
+    //% block="%pos"
+    //% pos.fieldEditor="gridpicker"
+    //% pos.fieldOptions.columns=16
+    //% blockHidden=true
+    export function position1602(pos: LcdPosition1602): number {
+        return pos;
     }
 
     /**
-     * Cria um caractere customizado inserindo os valores binários de 5 bits para cada linha.
-     * Use o formato 0bXXXXX (Ex: Coração L2 = 0b01010)
+     * Exibe um símbolo customizado (Slot 0 a 7) em uma posição selecionada via Grid Picker (estilo MakerBit)
+     * @param slot número do slot de memória (0 a 7)
+     * @param position posição na tela selecionada no Grid
+     */
+    //% block="[LCD Símbolo] Mostrar Slot %slot|na posição %position=superkit_lcd_position_1602"
+    //% slot.min=0 slot.max=7
+    export function lcdShowCharacter1602(slot: number, position: number): void {
+        let col = position % 16;
+        let linha = position >= 16 ? 1 : 0;
+        let offsets = [0x00, 0x40];
+
+        i2cLcdWrite(0x80 | (offsets[linha] + col), 0);
+        i2cLcdWrite(slot, 1);
+    }
+
+    /**
+     * Cria um caractere customizado inserindo os valores binários de 5 bits para cada linha (0bXXXXX)
      * @param slot número do slot de memória (0 a 7)
      */
     //% block="[LCD Símbolo] Criar no Slot %slot | L1 %b1 L2 %b2 L3 %b3 L4 %b4 L5 %b5 L6 %b6 L7 %b7 L8 %b8"
@@ -102,14 +126,16 @@ namespace superKitI2C {
     }
 
     /**
-     * Desenha na tela um símbolo customizado que foi salvo previamente em um Slot (0 a 7)
+     * Exibe um texto normal no LCD em uma linha e coluna específicas
      */
-    //% block="[LCD Símbolo] Escrever Slot %slot na Coluna %col Linha %linha"
-    //% slot.min=0 slot.max=7 col.min=0 col.max=15 linha.min=0 linha.max=1
-    export function lcdPrintCustomChar(slot: number, col: number, linha: number): void {
-        let offsets = [0x00, 0x40];
-        i2cLcdWrite(0x80 | (offsets[linha] + col), 0);
-        i2cLcdWrite(slot, 1);
+    //% block="[LCD] Mostrar texto %texto na Coluna %col Linha %linha"
+    //% col.min=0 col.max=15 linha.min=0 linha.max=1
+    export function lcdShowString(texto: string, col: number, linha: number): void {
+        let offsets = [0x00, 0x40]
+        i2cLcdWrite(0x80 | (offsets[linha] + col), 0)
+        for (let i = 0; i < texto.length; i++) {
+            i2cLcdWrite(texto.charCodeAt(i), 1)
+        }
     }
 
 
@@ -117,7 +143,6 @@ namespace superKitI2C {
 
     /**
      * Lê qual tecla foi pressionada no teclado 4x4 via expansor PCF8574
-     * @param pcfAddr endereço I2C do PCF8574 (geralmente 0x20 ou 0x38)
      */
     //% block="[Teclado] Ler tecla pressionada no endereço I2C %pcfAddr"
     //% pcfAddr.defl=0x20
@@ -204,7 +229,6 @@ namespace superKitI2C {
 
     /**
      * Insere um número pressionado na lógica da calculadora
-     * @param numTexto O dígito em string lido do teclado (0-9)
      */
     //% block="[Calculadora] Inserir Dígito %numTexto"
     export function calcInserirDigito(numTexto: string): void {
