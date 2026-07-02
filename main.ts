@@ -1,7 +1,3 @@
-/**
- * Extensão Completa: LCD Avançado, Teclado PCF8574, Cofre e Calculadora Completa
- */
-//% weight=100 color=#0066cc icon="\uf11c" block="Aplicativos"
 namespace superKitI2C {
 
     let senhaCorreta = "1234"
@@ -107,8 +103,8 @@ namespace superKitI2C {
     //% block="[LCD Símbolo] Escrever Slot %slot na Coluna %col Linha %linha"
     //% slot.min=0 slot.max=7 col.min=0 col.max=15 linha.min=0 linha.max=1
     export function lcdPrintCustomChar(slot: number, col: number, linha: number): void {
-        let offsets = [0x00, 0x40];
-        i2cLcdWrite(0x80 | (offsets[linha] + col), 0);
+        let offsets2 = [0x00, 0x40];
+        i2cLcdWrite(0x80 | (offsets2[linha] + col), 0);
         i2cLcdWrite(slot, 1);
     }
 
@@ -177,7 +173,7 @@ namespace superKitI2C {
                 senhaDigitada += tecla;
             }
             let segredo = "";
-            for (let i = 0; i < senhaDigitada.length; i++) {
+            for (let j = 0; j < senhaDigitada.length; j++) {
                 segredo += "*";
             }
             return segredo;
